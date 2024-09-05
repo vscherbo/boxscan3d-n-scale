@@ -52,7 +52,7 @@ class GPIOEventHandler:
             "edge": event_type
         })
         """
-        self.lines = gpiod.request_lines(self.chip_name, consumer="watch-lines-edge",
+        self.request = gpiod.request_lines(self.chip_name, consumer="watch-lines-edge",
                                              config={
                                                  self.line_numbers: gpiod.LineSettings(edge_detection=event_type, debounce_period=timedelta(microseconds=0))
                                                  #tuple(self.line_numbers): gpiod.LineSettings(edge_detection=event_type, debounce_period=timedelta(microseconds=0))
@@ -64,7 +64,7 @@ class GPIOEventHandler:
         """Listen for GPIO edge events."""
         while self.running:
             # Block until an event occurs
-            events = self.lines.read_edge_events()
+            events = self.request.read_edge_events()
             if events:
                 for event in events:
                     #self.callback(event.line.offset, event)
@@ -86,7 +86,7 @@ class GPIOEventHandler:
     def __del__(self):
         """Clean up resources."""
         if hasattr(self, 'lines'):
-            self.lines.release()
+            self.request.release()
 
 # Example callback function
 def edge_detected(line_offset, event):

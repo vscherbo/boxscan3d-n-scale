@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from datetime import timedelta
-
+import time
 import gpiod
 import threading
 
@@ -70,11 +70,30 @@ class GPIOEventHandler:
                     #self.callback(event.line.offset, event)
                     self.callback(event.line_offset, event)
 
+
+    def _event_listener_timeout(self):
+        """Listen for GPIO edge events."""
+        while self.running:
+            # Use a timeout to prevent hanging when no events occur
+            try:
+                events = self.request.read_edge_events(timeout=1.0)  # Set timeout to 1 second
+                if events:
+                    for event in events:
+                        self.callback(event.line_offset, event)
+            except gpiod.TimeoutError:
+                # No event occurred within the timeout period, continue checking `self.running`
+                print('timeout')
+                pass
+
+            time.sleep(0.1)  # Sleep for 100ms to avoid high CPU usage
+
+
     def start(self):
         """Start the event listener thread."""
         self.running = True
         if not self.event_thread.is_alive():
-            self.event_thread = threading.Thread(target=self._event_listener)
+            #self.event_thread = threading.Thread(target=self._event_listener)
+            self.event_thread = threading.Thread(target=self._event_listener_timeout)
             self.event_thread.daemon = True
             self.event_thread.start()
 
@@ -85,22 +104,71 @@ class GPIOEventHandler:
 
     def __del__(self):
         """Clean up resources."""
-        if hasattr(self, 'lines'):
+        self.stop()  # Stop the thread if not stopped
+        if hasattr(self, 'request'):
             self.request.release()
 
 # Example callback function
 def edge_detected(line_offset, event):
     print(f"Edge detected on line {line_offset}! Event: {event.event_type}")
 
+class Ruler3D:
+    def __init__(self):
+        self.timestamp_rising = {}
+        self.dist3 = {}
+
+    def event_handler(self, line_offset, event):
+        print(f"Edge detected on line {line_offset}! Event: {event.event_type}")
+        if event.event_type == event.Type.RISING_EDGE:
+            #print(f'=== RISING {self.dist3}')
+            self.timestamp_rising[event.line_offset] = event.timestamp_ns
+            #print(f'=== {self.timestamp_rising}')
+            try:
+                if len(self.dist3[event.line_offset]) == 2:
+                    #print(f' empty {self.dist3[event.line_offset]}')
+                    self.dist3[event.line_offset] = []
+            except KeyError:
+                self.dist3[event.line_offset] = []
+                pass
+
+        elif event.event_type == event.Type.FALLING_EDGE:
+            #print(f'=== FALL {self.timestamp_rising}')
+            try:
+                ts_delta = event.timestamp_ns - self.timestamp_rising[event.line_offset]
+            except KeyError:
+                print(f'NO rising. Skip: {self.dist3}')
+            else:
+                #print(f'delta={ts_delta}')
+                #dist_cm = round(ts_delta/1000/58.8, 1)
+                dist_cm = round(ts_delta/1000/57.72, 1)
+                #print(f'   {line_def[event.line_offset]["name"]}', f'dist(cm)={dist_cm}')
+                print(f'   {event.line_offset}', f'dist(cm)={dist_cm}')
+                self.dist3[event.line_offset].append(dist_cm)
+                #print(f'=== FALLING {self.dist3}')
+                if len(self.dist3[event.line_offset]) == 2:
+                    dist_avg = round((self.dist3[event.line_offset][0] + self.dist3[event.line_offset][1])/2.0, 1)
+                    self.dist3[event.line_offset] = []
+                    print(f'{line_offset}', f'dist_avg={dist_avg}')
+                    #size = round(line_def[event.line_offset]['base'] - dist_avg, 1)
+                    #print(f'{line_def[event.line_offset]["name"]}', f'dist_avg={dist_avg}', f'size={size}')
+                    self.timestamp_rising[event.line_offset] = {}
+
+
 
 # Example usage
 if __name__ == "__main__":
-    handler = GPIOEventHandler(chip_name="/dev/gpiochip0", line_numbers=[69, 75, 79], edge_type="both", callback=edge_detected)
+    ruler3d = Ruler3D()
+    handler = GPIOEventHandler(chip_name="/dev/gpiochip0", line_numbers=[69, 75, 79], edge_type="both", callback=ruler3d.event_handler)
+    #handler = GPIOEventHandler(chip_name="/dev/gpiochip0", line_numbers=[69, 75, 79], edge_type="both", callback=edge_detected)
+    
 
     try:
         while True:
             pass  # Keep the program running
+            time.sleep(1)
+            #print('loop')
     except KeyboardInterrupt:
+        print('\ncaught keyboard interrupt!')
         handler.stop()
         print("Program terminated")
 

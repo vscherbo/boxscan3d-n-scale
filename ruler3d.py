@@ -5,6 +5,8 @@ import time
 import gpiod
 import threading
 
+import log_app
+
 class GPIOEventHandler:
     def __init__(self, chip_name, line_numbers, edge_type, callback):
         """
@@ -112,13 +114,37 @@ class GPIOEventHandler:
 def edge_detected(line_offset, event):
     print(f"Edge detected on line {line_offset}! Event: {event.event_type}")
 
-class Ruler3D:
-    def __init__(self):
+class Ruler3D(log_app.LogApp):
+    def __init__(self, args):
+        log_app.LogApp.__init__(self, args=args)
+        config_filename = args.conf
+        self.get_config(config_filename)
+
+        #super().__init__(self.config['PG']['pg_host'], self.config['PG']['pg_user'])
+        #if self.pg_connect():
+        #    self.set_session(autocommit=True)
+
         self.timestamp_rising = {}
         self.dist3 = {}
 
+        self.line_def = {}
+        self.line_def[int(self.config['length']['line'])] = {
+                       'base': float(self.config['length']['base']),
+                       'name': self.config['length']['name']
+                }
+        self.line_def[int(self.config['width']['line'])] = {
+                       'base': float(self.config['width']['base']),
+                       'name': self.config['width']['name']
+                }
+        self.line_def[int(self.config['heigth']['line'])] = {
+                       'base': float(self.config['heigth']['base']),
+                       'name': self.config['heigth']['name']
+                }
+
+
+
     def event_handler(self, line_offset, event):
-        print(f"Edge detected on line {line_offset}! Event: {event.event_type}")
+        #print(f"Edge detected on line {line_offset}! Event: {event.event_type}")
         if event.event_type == event.Type.RISING_EDGE:
             #print(f'=== RISING {self.dist3}')
             self.timestamp_rising[event.line_offset] = event.timestamp_ns
@@ -148,27 +174,35 @@ class Ruler3D:
                 if len(self.dist3[event.line_offset]) == 2:
                     dist_avg = round((self.dist3[event.line_offset][0] + self.dist3[event.line_offset][1])/2.0, 1)
                     self.dist3[event.line_offset] = []
-                    print(f'{line_offset}', f'dist_avg={dist_avg}')
-                    #size = round(line_def[event.line_offset]['base'] - dist_avg, 1)
-                    #print(f'{line_def[event.line_offset]["name"]}', f'dist_avg={dist_avg}', f'size={size}')
+                    #print(f'{line_offset}', f'dist_avg={dist_avg}')
+                    size = round(self.line_def[event.line_offset]['base'] - dist_avg, 1)
+                    #print(f'{self.line_def[event.line_offset]["name"]}', f'dist_avg={dist_avg}', f'size={size}')
+                    logging.debug(f'{self.line_def[event.line_offset]["name"]}, dist_avg={dist_avg}, size={size}')
                     self.timestamp_rising[event.line_offset] = {}
 
 
 
+def main():
+    """ Just main
+    """
+
 # Example usage
 if __name__ == "__main__":
-    ruler3d = Ruler3D()
-    handler = GPIOEventHandler(chip_name="/dev/gpiochip0", line_numbers=[69, 75, 79], edge_type="both", callback=ruler3d.event_handler)
-    #handler = GPIOEventHandler(chip_name="/dev/gpiochip0", line_numbers=[69, 75, 79], edge_type="both", callback=edge_detected)
-    
+    import logging
+    #log_app.PARSER.add_argument('--uuid', type=str, help='an order uuid to check status')
+    ARGS = log_app.PARSER.parse_args()
+    ruler3d = Ruler3D(args=ARGS)    
+    if ruler3d:
+        logging.debug(ruler3d.line_def)
+        handler = GPIOEventHandler(chip_name="/dev/gpiochip0", line_numbers=[69, 75, 79], edge_type="both", callback=ruler3d.event_handler)
 
-    try:
-        while True:
-            pass  # Keep the program running
-            time.sleep(1)
-            #print('loop')
-    except KeyboardInterrupt:
-        print('\ncaught keyboard interrupt!')
-        handler.stop()
-        print("Program terminated")
+        try:
+            while True:
+                pass  # Keep the program running
+                time.sleep(1)
+                #print('loop')
+        except KeyboardInterrupt:
+            print('\ncaught keyboard interrupt!')
+            handler.stop()
+            print("Program terminated")
 

@@ -18,7 +18,7 @@ class GPIOEventHandler:
         :param callback: The callback function to execute on edge detection.
         """
         self.chip_name = chip_name
-        self.line_numbers = tuple(line_numbers)
+        self.line_numbers = line_numbers
         self.edge_type = edge_type
         self.callback = callback
         self.running = True
@@ -84,7 +84,7 @@ class GPIOEventHandler:
                         self.callback(event.line_offset, event)
             except gpiod.TimeoutError:
                 # No event occurred within the timeout period, continue checking `self.running`
-                print('timeout')
+                logging.warning('timeout')
                 pass
 
             time.sleep(0.1)  # Sleep for 100ms to avoid high CPU usage
@@ -109,10 +109,6 @@ class GPIOEventHandler:
         self.stop()  # Stop the thread if not stopped
         if hasattr(self, 'request'):
             self.request.release()
-
-# Example callback function
-def edge_detected(line_offset, event):
-    print(f"Edge detected on line {line_offset}! Event: {event.event_type}")
 
 class Ruler3D(log_app.LogApp):
     def __init__(self, args):
@@ -142,41 +138,41 @@ class Ruler3D(log_app.LogApp):
                 }
 
 
+    @property
+    def lines(self):
+        """ Converts keys of self.line_def to tuple """
+        return tuple(self.line_def.keys())
+
+    @property
+    def chip_name(self):
+        """ Returns chip_name from config """
+        return self.config['GPIO']['chip_name']
 
     def event_handler(self, line_offset, event):
-        #print(f"Edge detected on line {line_offset}! Event: {event.event_type}")
+        #logging.debug(f"Edge detected on line {line_offset}! Event: {event.event_type}")
         if event.event_type == event.Type.RISING_EDGE:
-            #print(f'=== RISING {self.dist3}')
             self.timestamp_rising[event.line_offset] = event.timestamp_ns
-            #print(f'=== {self.timestamp_rising}')
             try:
                 if len(self.dist3[event.line_offset]) == 2:
-                    #print(f' empty {self.dist3[event.line_offset]}')
                     self.dist3[event.line_offset] = []
             except KeyError:
                 self.dist3[event.line_offset] = []
                 pass
 
         elif event.event_type == event.Type.FALLING_EDGE:
-            #print(f'=== FALL {self.timestamp_rising}')
             try:
                 ts_delta = event.timestamp_ns - self.timestamp_rising[event.line_offset]
             except KeyError:
-                print(f'NO rising. Skip: {self.dist3}')
+                logging.warning(f'NO rising. Skip: {self.dist3}')
             else:
-                #print(f'delta={ts_delta}')
                 #dist_cm = round(ts_delta/1000/58.8, 1)
                 dist_cm = round(ts_delta/1000/57.72, 1)
-                #print(f'   {line_def[event.line_offset]["name"]}', f'dist(cm)={dist_cm}')
-                print(f'   {event.line_offset}', f'dist(cm)={dist_cm}')
+                logging.debug(f'   {event.line_offset}, dist(cm)={dist_cm}')
                 self.dist3[event.line_offset].append(dist_cm)
-                #print(f'=== FALLING {self.dist3}')
                 if len(self.dist3[event.line_offset]) == 2:
                     dist_avg = round((self.dist3[event.line_offset][0] + self.dist3[event.line_offset][1])/2.0, 1)
                     self.dist3[event.line_offset] = []
-                    #print(f'{line_offset}', f'dist_avg={dist_avg}')
                     size = round(self.line_def[event.line_offset]['base'] - dist_avg, 1)
-                    #print(f'{self.line_def[event.line_offset]["name"]}', f'dist_avg={dist_avg}', f'size={size}')
                     logging.debug(f'{self.line_def[event.line_offset]["name"]}, dist_avg={dist_avg}, size={size}')
                     self.timestamp_rising[event.line_offset] = {}
 
@@ -189,12 +185,17 @@ def main():
 # Example usage
 if __name__ == "__main__":
     import logging
+    import sys
     #log_app.PARSER.add_argument('--uuid', type=str, help='an order uuid to check status')
     ARGS = log_app.PARSER.parse_args()
-    ruler3d = Ruler3D(args=ARGS)    
-    if ruler3d:
-        logging.debug(ruler3d.line_def)
-        handler = GPIOEventHandler(chip_name="/dev/gpiochip0", line_numbers=[69, 75, 79], edge_type="both", callback=ruler3d.event_handler)
+    RULER3D = Ruler3D(args=ARGS)
+    if RULER3D:
+        logging.debug(RULER3D.line_def)
+        #logging.debug('type: lines tuple=%s', type(RULER3D.lines))
+        #logging.debug('lines tuple=%s', RULER3D.lines)
+
+        HANDLER = GPIOEventHandler(chip_name=RULER3D.chip_name, line_numbers=RULER3D.lines, edge_type="both", callback=RULER3D.event_handler)
+        #HANDLER = GPIOEventHandler(chip_name="/dev/gpiochip0", line_numbers=RULER3D.lines, edge_type="both", callback=RULER3D.event_handler)
 
         try:
             while True:
@@ -203,6 +204,6 @@ if __name__ == "__main__":
                 #print('loop')
         except KeyboardInterrupt:
             print('\ncaught keyboard interrupt!')
-            handler.stop()
+            HANDLER.stop()
             print("Program terminated")
 

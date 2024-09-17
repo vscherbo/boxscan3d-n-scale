@@ -118,7 +118,7 @@ class Ruler3D(log_app.LogApp):
     def __init__(self, args):
         log_app.LogApp.__init__(self, args=args)
         config_filename = args.conf
-        self.get_config(config_filename)
+        self.get_config(inline_comment_prefixes=(';','#'))
 
         #super().__init__(self.config['PG']['pg_host'], self.config['PG']['pg_user'])
         #if self.pg_connect():

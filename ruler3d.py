@@ -145,32 +145,32 @@ class Ruler3D(log_app.LogApp):
         return self.config['GPIO']['chip_name']
 
     def event_handler(self, line_offset, event):
-        # logging.debug(f"Edge detected on line {line_offset}! Event: {event.event_type}")
+        # logging.debug(f"Edge detected on line {line_offset} event.line_offset={event.line_offset}, Event: {event.event_type}")
         if event.event_type == event.Type.RISING_EDGE:
-            self.timestamp_rising[event.line_offset] = event.timestamp_ns
+            self.timestamp_rising[line_offset] = event.timestamp_ns
             try:
-                if len(self.dist3[event.line_offset]) == 2:
-                    self.dist3[event.line_offset] = []
+                if len(self.dist3[line_offset]) == 2:
+                    self.dist3[line_offset] = []
             except KeyError:
-                self.dist3[event.line_offset] = []
+                self.dist3[line_offset] = []
                 pass
 
         elif event.event_type == event.Type.FALLING_EDGE:
             try:
-                ts_delta = event.timestamp_ns - self.timestamp_rising[event.line_offset]
+                ts_delta = event.timestamp_ns - self.timestamp_rising[line_offset]
             except KeyError:
                 logging.warning(f'NO rising. Skip: {self.dist3}')
             else:
                 # dist_cm = round(ts_delta/1000/58.8, 1)
                 dist_cm = round(ts_delta / 1000 / 57.72, 1)
-                logging.debug(f'   {event.line_offset}, dist(cm)={dist_cm}')
-                self.dist3[event.line_offset].append(dist_cm)
-                if len(self.dist3[event.line_offset]) == 2:
-                    dist_avg = round((self.dist3[event.line_offset][0] + self.dist3[event.line_offset][1]) / 2.0, 1)
-                    self.dist3[event.line_offset] = []
-                    size = round(self.line_def[event.line_offset]['base'] - dist_avg, 1)
-                    logging.debug(f'{self.line_def[event.line_offset]["name"]}, dist_avg={dist_avg}, size={size}')
-                    self.timestamp_rising[event.line_offset] = {}
+                logging.debug(f'   {line_offset}, dist(cm)={dist_cm}')
+                self.dist3[line_offset].append(dist_cm)
+                if len(self.dist3[line_offset]) == 2:
+                    dist_avg = round((self.dist3[line_offset][0] + self.dist3[line_offset][1]) / 2.0, 1)
+                    self.dist3[line_offset] = []
+                    size = round(self.line_def[line_offset]['base'] - dist_avg, 1)
+                    logging.debug(f'{self.line_def[line_offset]["name"]}, dist_avg={dist_avg}, size={size}')
+                    self.timestamp_rising[line_offset] = {}
 
 
 def main():

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-from datetime import timedelta
 import time
 import gpiod
 import threading

@@ -31,7 +31,7 @@ class GPIOEventHandler:
         self._configure_lines()
 
         # Start the event listener in a separate thread
-        self.event_thread = threading.Thread(target=self._event_listener_timeout)
+        self.event_thread = threading.Thread(target=self._event_listener)
         self.event_thread.daemon = True
         self.event_thread.start()
 
@@ -48,18 +48,9 @@ class GPIOEventHandler:
             raise ValueError("Invalid edge_type. Use 'rising', 'falling', or 'both'.")
 
         # Request lines with event detection
-        """
-        self.lines = self.chip.request_lines({
-            "consumer": "gpio-event-handler",
-            "lines": self.line_numbers,
-            "edge": event_type
-        })
-        """
         self.request = gpiod.request_lines(self.chip_name, consumer="watch-lines-edge",
                                            config={
-                                               self.line_numbers: gpiod.LineSettings(edge_detection=event_type,
-                                                                                     debounce_period=timedelta(
-                                                                                         microseconds=0))
+                                               self.line_numbers: gpiod.LineSettings(edge_detection=event_type)
                                            }
                                            )
 
@@ -72,41 +63,25 @@ class GPIOEventHandler:
                 for event in events:
                     self.callback(event.line_offset, event)
 
-    def _event_listener_timeout(self):
-        """Listen for GPIO edge events."""
-        while self.running:
-            # Use a timeout to prevent hanging when no events occur
-            try:
-                events = self.request.read_edge_events()
-                if events:
-                    for event in events:
-                        self.callback(event.line_offset, event)
-            except gpiod.RequestReleasedError:  # TimeoutError:
-                # No event occurred within the timeout period, continue checking `self.running`
-                logging.warning('bla-bla, NO timeout')
-                pass
-
-            time.sleep(0.1)  # Sleep for 100ms to avoid high CPU usage
-
     def start(self):
         """Start the event listener thread."""
         self.running = True
         if not self.event_thread.is_alive():
-            # self.event_thread = threading.Thread(target=self._event_listener)
-            self.event_thread = threading.Thread(target=self._event_listener_timeout)
+            self.event_thread = threading.Thread(target=self._event_listener)
             self.event_thread.daemon = True
             self.event_thread.start()
 
     def stop(self):
-        """Stop the event listener thread."""
         self.running = False
-        self.event_thread.join()
+        """Stop the event listener thread."""
+        if hasattr(self, 'request'):
+            self.request.release()
+            logging.debug('self.request released')
 
     def __del__(self):
         """Clean up resources."""
         self.stop()  # Stop the thread if not stopped
-        if hasattr(self, 'request'):
-            self.request.release()
+        logging.debug('finalizer')
 
 
 class Ruler3D(log_app.LogApp):
@@ -161,6 +136,7 @@ class Ruler3D(log_app.LogApp):
             except KeyError:
                 logging.warning(f'NO rising. Skip: {self.dist3}')
             else:
+                # if delta 38 ms then NO answer received!
                 # dist_cm = round(ts_delta/1000/58.8, 1)
                 dist_cm = round(ts_delta / 1000 / 57.72, 1)
                 logging.debug(f'   {line_offset}, dist(cm)={dist_cm}')
@@ -193,8 +169,6 @@ if __name__ == "__main__":
 
         HANDLER = GPIOEventHandler(chip_name=RULER3D.chip_name, line_numbers=RULER3D.lines, edge_type="both",
                                    callback=RULER3D.event_handler)
-        # HANDLER = GPIOEventHandler(chip_name="/dev/gpiochip0", line_numbers=RULER3D.lines, edge_type="both",
-        # callback=RULER3D.event_handler)
 
         try:
             while True:

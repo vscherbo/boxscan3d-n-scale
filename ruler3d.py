@@ -31,7 +31,7 @@ class GPIOEventHandler:
         self._configure_lines()
 
         # Start the event listener in a separate thread
-        self.event_thread = threading.Thread(target=self._event_listener)
+        self.event_thread = threading.Thread(target=self._event_listener_timeout)
         self.event_thread.daemon = True
         self.event_thread.start()
 
@@ -122,16 +122,17 @@ class Ruler3D(log_app.LogApp):
         self.timestamp_rising = {}
         self.dist3 = {}
 
-        self.line_def = {int(self.config['length']['line']): {
-            'base': float(self.config['length']['base']),
-            'name': self.config['length']['name']
-        }, int(self.config['width']['line']): {
-            'base': float(self.config['width']['base']),
-            'name': self.config['width']['name']
-        }, int(self.config['height']['line']): {
-            'base': float(self.config['height']['base']),
-            'name': self.config['height']['name']
-        }}
+        self.line_def = {
+                int(self.config['length']['line']): {
+                        'base': float(self.config['length']['base']),
+                        'name': self.config['length']['name'] },
+                int(self.config['width']['line']): {
+                        'base': float(self.config['width']['base']),
+                        'name': self.config['width']['name'] },
+                int(self.config['height']['line']): {
+                        'base': float(self.config['height']['base']),
+                        'name': self.config['height']['name']}
+        }
 
     @property
     def lines(self):

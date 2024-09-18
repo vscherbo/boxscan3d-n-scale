@@ -145,7 +145,7 @@ class Ruler3D(log_app.LogApp):
         return self.config['GPIO']['chip_name']
 
     def event_handler(self, line_offset, event):
-        # logging.debug(f"Edge detected on line {line_offset} event.line_offset={event.line_offset}, Event: {event.event_type}")
+        # logging.debug(f"Edge detected on line {line_offset}, Event: {event.event_type}")
         if event.event_type == event.Type.RISING_EDGE:
             self.timestamp_rising[line_offset] = event.timestamp_ns
             try:

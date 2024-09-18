@@ -125,10 +125,10 @@ class Ruler3D(log_app.LogApp):
         self.line_def = {
                 int(self.config['length']['line']): {
                         'base': float(self.config['length']['base']),
-                        'name': self.config['length']['name'] },
+                        'name': self.config['length']['name']},
                 int(self.config['width']['line']): {
                         'base': float(self.config['width']['base']),
-                        'name': self.config['width']['name'] },
+                        'name': self.config['width']['name']},
                 int(self.config['height']['line']): {
                         'base': float(self.config['height']['base']),
                         'name': self.config['height']['name']}

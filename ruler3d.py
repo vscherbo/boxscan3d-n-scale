@@ -5,6 +5,7 @@ import gpiod
 import threading
 
 import log_app
+import pg_app
 
 
 class GPIOEventHandler:
@@ -83,18 +84,26 @@ class GPIOEventHandler:
         logging.debug('finalizer')
 
 
-class Ruler3D(log_app.LogApp):
+INS_R3D = """INSERT INTO shp.ruler3d (box_id, length, width, height)
+VALUES (%s, %s, %s, %s);
+"""
+
+
+class Ruler3D(log_app.LogApp, pg_app.PGapp):
     def __init__(self, args):
+        print(args)
+        print (type (args))
         log_app.LogApp.__init__(self, args=args)
         # config_filename = args.conf
         self.get_config(inline_comment_prefixes=(';', '#'))
 
-        # super().__init__(self.config['PG']['pg_host'], self.config['PG']['pg_user'])
-        # if self.pg_connect():
-        #     self.set_session(autocommit=True)
+        pg_app.PGapp.__init__(self, self.config['PG']['pg_host'], self.config['PG']['pg_user'])
+        if self.pg_connect():
+            self.set_session(autocommit=True)
 
         self.timestamp_rising = {}
         self.dist3 = {}
+        self.size = {}
 
         self.line_def = {
             int(self.config['length']['line']): {
@@ -143,9 +152,19 @@ class Ruler3D(log_app.LogApp):
                 if len(self.dist3[line_offset]) == 2:
                     dist_avg = round((self.dist3[line_offset][0] + self.dist3[line_offset][1]) / 2.0, 1)
                     self.dist3[line_offset] = []
-                    size = round(self.line_def[line_offset]['base'] - dist_avg, 1)
+                    size: float = round(self.line_def[line_offset]['base'] - dist_avg, 1)
+                    self.size[self.line_def[line_offset]['name']] = size
                     logging.debug(f'{self.line_def[line_offset]["name"]}, dist_avg={dist_avg}, size={size}')
                     self.timestamp_rising[line_offset] = {}
+                    if len(self.size) == 3:
+                        self.pg_write()
+                        self.size = {}
+
+    def pg_write(self):
+        """ save results to PG database"""
+        logging.debug(self.size)
+        ins_sql = self.curs.mogrify(INS_R3D, (1, self.size['длина'], self.size['ширина'], self.size['высота']))
+        self.do_query(ins_sql, reconnect=True)
 
 
 def main():
@@ -160,6 +179,7 @@ if __name__ == "__main__":
 
     # log_app.PARSER.add_argument('--uuid', type=str, help='an order uuid to check status')
     ARGS = log_app.PARSER.parse_args()
+    print(ARGS)
     RULER3D = Ruler3D(args=ARGS)
     if RULER3D:
         logging.debug(RULER3D.line_def)
@@ -195,14 +215,14 @@ if __name__ == "__main__":
         except PermissionError:
             logging.error("Permission denied")
             sys.exit(1)
-
-        try:
-            while True:
-                pass  # Keep the program running
-                time.sleep(1)
-                # print('loop')
-        except KeyboardInterrupt:
-            print('\ncaught keyboard interrupt!')
-            if HANDLER is not None:
-                HANDLER.stop()
-            print("Program terminated")
+        else:
+            try:
+                while True:
+                    pass  # Keep the program running
+                    time.sleep(1)
+                    # print('loop')
+            except KeyboardInterrupt:
+                print('\ncaught keyboard interrupt!')
+                if HANDLER is not None:
+                    HANDLER.stop()
+                print("Program terminated")

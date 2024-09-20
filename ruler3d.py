@@ -166,8 +166,32 @@ if __name__ == "__main__":
         # logging.debug('type: lines tuple=%s', type(RULER3D.lines))
         # logging.debug('lines tuple=%s', RULER3D.lines)
 
-        HANDLER = GPIOEventHandler(chip_name=RULER3D.chip_name, line_numbers=RULER3D.lines, edge_type="both",
-                                   callback=RULER3D.event_handler)
+        try:
+            HANDLER: GPIOEventHandler = GPIOEventHandler(chip_name=RULER3D.chip_name, line_numbers=RULER3D.lines, edge_type="both",
+                                       callback=RULER3D.event_handler)
+        except FileNotFoundError:
+            logging.error("GPIO chip not found, run in EMU mode")
+            # run emulator mode
+            for emu_line in RULER3D.lines:
+                for cnt in [0,1]:
+                    RULER3D.event_handler(emu_line,
+                                          gpiod.EdgeEvent(event_type=gpiod._ext.EDGE_EVENT_TYPE_RISING,
+                                                          timestamp_ns=time.time_ns(),
+                                                          line_offset=emu_line,
+                                                          global_seqno=0,
+                                                          line_seqno=emu_line)
+                                        )
+                    time.sleep(0.001)
+                    RULER3D.event_handler(emu_line,
+                                          gpiod.EdgeEvent(event_type=gpiod._ext.EDGE_EVENT_TYPE_FALLING,
+                                                          line_offset=emu_line,
+                                                          timestamp_ns=time.time_ns(),
+                                                          global_seqno=0,
+                                                          line_seqno=emu_line)
+                                          )
+        except PermissionError:
+            logging.error("Permission denied")
+            sys.exit(1)
 
         try:
             while True:

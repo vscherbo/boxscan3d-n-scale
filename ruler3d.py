@@ -97,15 +97,15 @@ class Ruler3D(log_app.LogApp):
         self.dist3 = {}
 
         self.line_def = {
-                int(self.config['length']['line']): {
-                        'base': float(self.config['length']['base']),
-                        'name': self.config['length']['name']},
-                int(self.config['width']['line']): {
-                        'base': float(self.config['width']['base']),
-                        'name': self.config['width']['name']},
-                int(self.config['height']['line']): {
-                        'base': float(self.config['height']['base']),
-                        'name': self.config['height']['name']}
+            int(self.config['length']['line']): {
+                'base': float(self.config['length']['base']),
+                'name': self.config['length']['name']},
+            int(self.config['width']['line']): {
+                'base': float(self.config['width']['base']),
+                'name': self.config['width']['name']},
+            int(self.config['height']['line']): {
+                'base': float(self.config['height']['base']),
+                'name': self.config['height']['name']}
         }
 
     @property
@@ -156,7 +156,7 @@ def main():
 # Example usage
 if __name__ == "__main__":
     import logging
-    # import sys
+    import sys
 
     # log_app.PARSER.add_argument('--uuid', type=str, help='an order uuid to check status')
     ARGS = log_app.PARSER.parse_args()
@@ -167,23 +167,26 @@ if __name__ == "__main__":
         # logging.debug('lines tuple=%s', RULER3D.lines)
 
         try:
-            HANDLER: GPIOEventHandler = GPIOEventHandler(chip_name=RULER3D.chip_name, line_numbers=RULER3D.lines, edge_type="both",
+            HANDLER = GPIOEventHandler(chip_name=RULER3D.chip_name, line_numbers=RULER3D.lines, edge_type="both",
                                        callback=RULER3D.event_handler)
         except FileNotFoundError:
+            HANDLER = None
             logging.error("GPIO chip not found, run in EMU mode")
             # run emulator mode
             for emu_line in RULER3D.lines:
-                for cnt in [0,1]:
+                for cnt in [0, 1]:
+                    # gpiod._ext.EDGE_EVENT_TYPE_RISING,
                     RULER3D.event_handler(emu_line,
-                                          gpiod.EdgeEvent(event_type=gpiod._ext.EDGE_EVENT_TYPE_RISING,
+                                          gpiod.EdgeEvent(event_type=gpiod.EdgeEvent.Type.RISING_EDGE.value,
                                                           timestamp_ns=time.time_ns(),
                                                           line_offset=emu_line,
                                                           global_seqno=0,
                                                           line_seqno=emu_line)
-                                        )
+                                          )
                     time.sleep(0.001)
+                    # gpiod._ext.EDGE_EVENT_TYPE_FALLING,
                     RULER3D.event_handler(emu_line,
-                                          gpiod.EdgeEvent(event_type=gpiod._ext.EDGE_EVENT_TYPE_FALLING,
+                                          gpiod.EdgeEvent(event_type=gpiod.EdgeEvent.Type.FALLING_EDGE.value,
                                                           line_offset=emu_line,
                                                           timestamp_ns=time.time_ns(),
                                                           global_seqno=0,
@@ -200,5 +203,6 @@ if __name__ == "__main__":
                 # print('loop')
         except KeyboardInterrupt:
             print('\ncaught keyboard interrupt!')
-            HANDLER.stop()
+            if HANDLER is not None:
+                HANDLER.stop()
             print("Program terminated")

@@ -91,8 +91,6 @@ VALUES (%s, %s, %s, %s);
 
 class Ruler3D(log_app.LogApp, pg_app.PGapp):
     def __init__(self, args):
-        print(args)
-        print (type (args))
         log_app.LogApp.__init__(self, args=args)
         # config_filename = args.conf
         self.get_config(inline_comment_prefixes=(';', '#'))
@@ -163,7 +161,7 @@ class Ruler3D(log_app.LogApp, pg_app.PGapp):
     def pg_write(self):
         """ save results to PG database"""
         logging.debug(self.size)
-        ins_sql = self.curs.mogrify(INS_R3D, (1, self.size['длина'], self.size['ширина'], self.size['высота']))
+        ins_sql = self.curs.mogrify(INS_R3D, (1, self.size['length'], self.size['width'], self.size['height']))
         self.do_query(ins_sql, reconnect=True)
 
 
